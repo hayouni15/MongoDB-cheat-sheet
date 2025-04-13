@@ -1,4 +1,4 @@
-# 📚 MongoDB Cheat Sheet
+# 📚 MongoDB + Mongoose Cheat Sheet
 
 ## 🔹 Basic CRUD Operations
 
@@ -74,44 +74,36 @@ db.collection.find().sort({ age: -1 }).limit(10).skip(5);
 
 ## 🔹 Aggregation Pipelines
 
-### Basic Structure
-
 ```js
-db.collection.aggregate([
-  { $match: { status: "active" } },
-  { $group: { _id: "$category", total: { $sum: "$price" } } },
+db.orders.aggregate([
+  { $match: { status: "completed" } },
+  { $group: { _id: "$customerId", total: { $sum: "$amount" } } },
   { $sort: { total: -1 } },
 ]);
 ```
 
 ### Common Stages
 
-| Stage        | Purpose                                    |
-| ------------ | ------------------------------------------ |
-| `$match`     | Filters documents                          |
-| `$group`     | Groups by fields and computes aggregations |
-| `$sort`      | Sorts documents                            |
-| `$project`   | Reshapes documents                         |
-| `$limit`     | Limits the number of documents             |
-| `$skip`      | Skips specified number of docs             |
-| `$unwind`    | Deconstructs array fields                  |
-| `$lookup`    | Joins documents from other collections     |
-| `$addFields` | Adds new fields                            |
+- `$match`: Filter documents
+- `$group`: Aggregate values
+- `$project`: Include/reshape fields
+- `$sort`, `$limit`, `$skip`, `$unwind`
+- `$lookup`: Join with another collection
+- `$addFields`: Add computed fields
 
-### Example: Lookup with Join
+### Example with `$lookup`
 
 ```js
-db.orders.aggregate([
+db.tasks.aggregate([
   {
     $lookup: {
       from: "users",
-      localField: "userId",
-      foreignField: "_id",
-      as: "user",
+      localField: "ownerEmail",
+      foreignField: "email",
+      as: "ownerInfo",
     },
   },
-  { $unwind: "$user" },
-  { $project: { _id: 0, orderId: 1, userName: "$user.name" } },
+  { $unwind: "$ownerInfo" },
 ]);
 ```
 
@@ -119,32 +111,45 @@ db.orders.aggregate([
 
 ## 🔹 Mongoose `.populate()`
 
-### Usage
-
-If you define a Mongoose schema like this:
-
-```js
-const TaskSchema = new mongoose.Schema({
-  description: String,
-  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-});
-```
-
-You can populate the `owner` field like so:
+### Basic Usage
 
 ```js
 Task.find().populate("owner");
 ```
 
-### Custom Options
+### Advanced
 
 ```js
 Task.find().populate({
   path: "owner",
   select: "name email",
   match: { age: { $gte: 18 } },
-  options: { limit: 5, sort: { name: 1 } },
+  options: { limit: 5 },
 });
+```
+
+---
+
+## 🔹 Mongoose Virtuals
+
+Virtuals are **computed properties** not stored in the database.
+
+### Example: Virtual Field on User → Tasks
+
+```js
+const userSchema = new mongoose.Schema({ ... });
+
+userSchema.virtual("tasks", {
+  ref: "Task",
+  localField: "_id",
+  foreignField: "owner"
+});
+```
+
+Now you can do:
+
+```js
+const user = await User.findById(id).populate("tasks");
 ```
 
 ---
@@ -235,9 +240,10 @@ db.collection.drop()    # Delete a collection
 
 ## ✅ Tips
 
-- `_id` is automatically indexed and required.
-- Use `ObjectId("...")` when querying by `_id`.
-- Use indexes to speed up large queries.
-- Use `$project` and `.select()` to limit returned fields.
-- Prefer `.populate()` in Mongoose for cleaner code over `$lookup`.
-- Avoid deeply nested documents unless necessary.
+- `_id` is auto-generated and indexed.
+- Use `ObjectId("...")` when querying `_id`.
+- Use `.populate()` in Mongoose for relationships.
+- Use `$lookup` in raw MongoDB for joins.
+- Use virtuals for inverse relationships in Mongoose.
+- Use aggregation when you need stats or joins.
+- Avoid storing passwords in plain text – always hash them.
